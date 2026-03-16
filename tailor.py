@@ -11,7 +11,7 @@ import yaml
 from rich.console import Console
 from rich.panel import Panel
 
-from lib.analyzer import analyze_posting, research_company_angle
+from lib.analyzer import analyze_posting, research_company
 from lib.generator import generate_cover_letter, generate_tailored_cv, regenerate_paragraph
 from lib.interactive import check_skill_gaps, console, display_analysis, get_cl_preferences, get_cv_preferences, get_job_posting
 from lib.renderer import apply_reductions, get_available_reductions, render_cover_letter, render_cv, render_cv_doc
@@ -288,18 +288,28 @@ def _process_posting(master: dict) -> None:
     cv_prefs = get_cv_preferences(analysis)
     console.print()
 
-    # Step 4: Start CV generation in background, ask CL prefs concurrently
-    research_fn = None
-    if not analysis.get("is_recruiter"):
-        research_fn = lambda: research_company_angle(analysis, master)
-
+    # Step 4: Start CV generation and company research in parallel
     console.print("  [dim]Starting CV generation...[/dim]")
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         cv_future = executor.submit(generate_tailored_cv, analysis, cv_prefs)
 
-        # Ask CL preferences while CV generates
+        # Kick off company research early (runs while user answers CL prefs)
+        research_future = None
+        if cv_prefs.get("include_cover_letter") and not analysis.get("is_recruiter"):
+            research_future = executor.submit(research_company, analysis, master)
+
+        # Ask CL preferences while CV generates (research results fed in)
         if cv_prefs["include_cover_letter"]:
-            cl_prefs = get_cl_preferences(analysis, research_fn=research_fn)
+            # Wait for research to finish before CL prefs (it's fast, Haiku)
+            research_result = {}
+            if research_future is not None:
+                with console.status("[bold green]Researching company..."):
+                    try:
+                        research_result = research_future.result()
+                    except Exception:
+                        pass
+
+            cl_prefs = get_cl_preferences(analysis, research=research_result)
             prefs = {**cv_prefs, **cl_prefs}
         else:
             prefs = cv_prefs

@@ -24,6 +24,7 @@ You will receive:
    - cl_why_company: why this specific company/domain interests the candidate
    - cl_personal: any personal connection to the domain (use only if provided and genuine)
    - cl_highlight_blocks: selected highlight angles to weave in
+4. Content relevance scores (JSON, scored 1-10 per category): experience bullets, soft skills, and highlight blocks, each pre-sorted by relevance to this role. Prioritize high-scoring items when deciding what to emphasize. Weave soft skills naturally as evidence of working style, not as a list.
 
 Write the cover letter in the candidate's voice. Key rules:
 - Reframe thesis/research experience to match the target domain
