@@ -1,0 +1,214 @@
+personal:
+  name: Jane Doe
+  title_variants:
+    ml: Machine Learning Engineer
+    fullstack: Senior Full-Stack Developer
+    hybrid: ML Engineer & Full-Stack Developer
+  contact:
+    location: Berlin, Germany
+    phone: "+49 123 456 7890"
+    email: jane.doe@example.com
+    linkedin: linkedin.com/in/jane-doe
+    github: github.com/janedoe
+    portfolio: janedoe.github.io/portfolio
+  visa: EU citizen
+  languages:
+  - English (C2)
+  - German (C1)
+  - Spanish (B1)
+  interests:
+  - Open source development
+  - Rock climbing
+  - Photography
+summaries:
+  ml: Machine Learning Engineer with hands-on experience designing and deploying deep
+    learning models. M.Sc. with focus on ML and computer vision. Backed by 5+ years
+    of production software engineering.
+  fullstack: Senior Full-Stack Developer with 5+ years building enterprise applications.
+    Combines proven production experience across React, Node.js, and Python with
+    growing expertise in AI/ML systems.
+skills:
+- category: ML & AI
+  items:
+  - PyTorch
+  - TensorFlow
+  - Hugging Face
+  - CNNs
+  - Transformers
+  - Computer Vision
+  - NLP
+  tags:
+  - ml
+  - ai
+- category: Languages
+  items:
+  - Python
+  - TypeScript
+  - JavaScript
+  - Go
+  - SQL
+  tags:
+  - fullstack
+  - ml
+- category: Frontend
+  items:
+  - React
+  - Vue
+  - Tailwind CSS
+  - HTML5
+  - CSS3
+  tags:
+  - fullstack
+  - frontend
+- category: Backend
+  items:
+  - Node.js
+  - FastAPI
+  - REST APIs
+  - Microservices
+  - PostgreSQL
+  - Redis
+  tags:
+  - fullstack
+  - backend
+- category: Infrastructure
+  items:
+  - Docker
+  - Kubernetes
+  - CI/CD
+  - AWS
+  - Linux
+  tags:
+  - devops
+  - fullstack
+experience:
+- id: acme_ml
+  title: ML Engineer
+  subtitle: Master's Thesis
+  company: Acme Corp
+  location: Berlin, Germany
+  dates: 2023-2024
+  tags:
+  - ml
+  - pytorch
+  - research
+  bullets:
+  - text: Developed deep learning models for time-series prediction, achieving 15%
+      improvement over baseline
+    tags:
+    - ml
+    - pytorch
+    priority: 1
+  - text: Built end-to-end training and inference pipelines with ONNX export for
+      production deployment
+    tags:
+    - ml
+    - production
+    priority: 1
+- id: techstart
+  title: Senior Full-Stack Developer
+  company: TechStart GmbH
+  location: Berlin, Germany
+  dates: 2019-2023
+  tags:
+  - fullstack
+  - frontend
+  - backend
+  bullets:
+  - text: Led development of a SaaS platform serving 10,000+ users across React
+      frontend and Node.js microservices backend
+    tags:
+    - fullstack
+    - production
+    priority: 1
+  - text: Architected data pipeline processing 1M+ events/day using PostgreSQL,
+      Redis, and message queues
+    tags:
+    - backend
+    - data
+    priority: 1
+  - text: Implemented CI/CD pipelines and containerized deployments with Docker
+      and Kubernetes
+    tags:
+    - devops
+    - production
+    priority: 2
+projects:
+- id: example_project
+  title: Self-Supervised Image Segmentation
+  context: University research project
+  tech: PyTorch, OpenCV
+  tags:
+  - ml
+  - cv
+  - research
+  bullets:
+  - text: Built multi-stage segmentation pipeline achieving state-of-the-art results
+      on benchmark dataset
+    tags:
+    - ml
+    - cv
+  - text: Evaluated multiple clustering approaches for instance extraction
+    tags:
+    - ml
+    - research
+education:
+- degree: M.Sc. Computer Science
+  school: Technical University of Berlin
+  year: 2024
+  details: "Focus: Machine Learning, Computer Vision"
+  tags:
+  - ml
+  - cv
+- degree: B.Sc. Computer Science
+  school: Technical University of Berlin
+  year: 2021
+  details: Algorithms, data structures, software architecture
+  tags:
+  - fullstack
+awards:
+- name: Best Demo Award 2022
+  role: Lead Developer
+  project: Interactive Learning Platform
+  tags:
+  - fullstack
+  - awards
+
+# Cover letter configuration — defines thesis framing angles and highlight blocks
+# shown during the interactive cover letter generation flow.
+cover_letter:
+  # How to frame your thesis/research work for different role types
+  thesis_angles:
+  - label: "ML/AI focus (model architectures, custom losses, training)"
+    value: ml_research
+  - label: "Production focus (deployment, pipeline engineering, integration)"
+    value: production
+  - label: "Process optimization (automating workflows, reducing manual steps)"
+    value: process_optimization
+  - label: "Data focus (dataset transformation, evaluation, analysis)"
+    value: data
+
+  # Highlight blocks — specific achievements to weave into cover letters.
+  # Each block has an id (used internally), a label (shown in the CLI),
+  # and keywords (for auto-selecting relevant blocks based on posting analysis).
+  highlight_blocks:
+  - id: model_compression
+    label: "Model compression (size reduction while maintaining performance)"
+    keywords: ["compression", "pruning", "distillation", "quantization", "optimization",
+               "model size", "edge", "mobile", "efficient", "lightweight"]
+  - id: ablation_doe
+    label: "Ablation studies / strict DOE methodology"
+    keywords: ["ablation", "experiment", "doe", "design of experiments", "benchmark",
+               "evaluation", "systematic", "methodology"]
+  - id: data_transformation
+    label: "Legacy data transformation (raw to ML-ready datasets)"
+    keywords: ["data pipeline", "data processing", "etl", "data engineering",
+               "data cleaning", "preprocessing", "legacy", "data transformation"]
+  - id: cloud_deployment
+    label: "Cloud deployment / containerized inference endpoint"
+    keywords: ["cloud", "gcp", "azure", "deploy", "inference", "endpoint",
+               "kubernetes", "docker"]
+  - id: stakeholder_communication
+    label: "Stakeholder communication (explaining complex AI to non-technical audiences)"
+    keywords: ["stakeholder", "present", "communicate", "collaborate", "leadership",
+               "cross-team", "explain"]

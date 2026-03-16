@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <h1>{{ personal.name }}</h1>
+    <div class="subtitle">{{ title }}</div>
+    <div class="contact">
+      {{ personal.contact.location }} | {{ personal.contact.phone }} | {{ personal.contact.email }}
+      {%- if personal.contact.linkedin %} | {{ personal.contact.linkedin }}{% endif %}
+      {%- if personal.contact.github %} | {{ personal.contact.github }}{% endif %}
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <h2>Professional Summary</h2>
+  <div class="summary">{{ summary }}</div>
+
+  <!-- Skills -->
+  <h2>Technical Skills</h2>
+  <table class="skills-table">
+    {% for skill in skills %}
+    <tr>
+      <td>{{ skill.category }}:</td>
+      <td>{{ skill['items'] | join(' · ') }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <!-- Experience -->
+  <h2>Professional Experience</h2>
+  {% for exp in experience %}
+  <div class="entry">
+    <div class="entry-header">
+      <h3>{{ exp.title }}{% if exp.subtitle %} ({{ exp.subtitle }}){% endif %}</h3>
+      <span class="dates">{{ exp.dates }}</span>
+    </div>
+    <div class="entry-sub">
+      {{ exp.company }}, {{ exp.location }}
+      {%- if exp.note %} ({{ exp.note }}){% endif %}
+    </div>
+    {% if exp.bullets %}
+    <ul>
+      {% for bullet in exp.bullets %}
+      <li>{{ bullet }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <!-- Projects -->
+  {% if projects %}
+  <h2>Research Projects</h2>
+  {% for proj in projects %}
+  <div class="project">
+    <span class="project-title">{{ proj.title }}</span>
+    <span class="project-context"> | {{ proj.context }}</span>
+    {% if proj.bullets %}
+    <ul>
+      {% for bullet in proj.bullets %}
+      <li>{{ bullet }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <!-- Education -->
+  <h2>Education</h2>
+  {% for edu in education %}
+  <div class="edu-entry">
+    <span class="degree">{{ edu.degree }}</span> —
+    <span class="school">{{ edu.school }}, {{ edu.year }}</span>
+    {% if edu.details %}
+    <div class="details">{{ edu.details }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <!-- Additional -->
+  {% if not hide_additional %}
+  <div class="additional">
+    {% if personal.languages %}
+    <strong>Languages:</strong> {{ personal.languages | join(', ') }}
+    {% endif %}
+    {% if personal.visa %}
+     · <strong>Work Authorization:</strong> {{ personal.visa }}
+    {% endif %}
+  </div>
+  {% endif %}
+
+</body>
+</html>

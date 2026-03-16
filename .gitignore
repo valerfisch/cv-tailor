@@ -1,0 +1,15 @@
+__pycache__/
+.venv/
+*.pyc
+output/
+*.bak
+
+# Personal data — never commit these
+master_cv.yaml
+motivations.yaml
+personal_notes.yaml
+Blocks.md
+test.md
+cvs/
+research/
+*.pdf

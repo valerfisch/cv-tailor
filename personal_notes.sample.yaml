@@ -1,0 +1,18 @@
+# Personal context for cover letter generation.
+# Used by the company research feature to find authentic personal angles.
+# This file is gitignored — copy to personal_notes.yaml and fill in your own details.
+
+# Domains you've worked in (used to find connections to target companies)
+domains_worked:
+  - "automotive (Acme Corp)"
+  - "edtech (TechStart GmbH)"
+  - "IoT/side projects"
+
+# Personal anecdotes that can be used in cover letters when relevant.
+# Each entry has a domain trigger and the anecdote text.
+# Only used when the target company/role matches the domain.
+anecdotes:
+  - domain: healthcare
+    text: "A family member's medical experience motivated my interest in healthcare AI"
+  - domain: education
+    text: "My bachelor thesis became a product used by thousands — I love research-to-product journeys"

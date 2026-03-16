@@ -1,0 +1,10 @@
+# Domain-specific motivations — used to pre-fill the "why this company/domain?" prompt.
+# Keys are domain names (lowercase), values are your personal motivation text.
+# These get saved/updated automatically when you enter motivations during a session.
+
+fintech: I'm drawn to the intersection of ML and financial systems — building models
+  that need to be both accurate and explainable.
+healthcare: Having seen firsthand how technology can improve patient outcomes, I want
+  to apply ML to healthcare challenges.
+edtech: I believe interactive, personalized learning tools can transform education,
+  and I want to build them.

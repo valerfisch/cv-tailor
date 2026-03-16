@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="cl-header">
+    <div class="header">
+      <h1>{{ personal.name }}</h1>
+      <div class="contact">
+        {{ personal.contact.location }} | {{ personal.contact.phone }} | {{ personal.contact.email }}
+        {%- if personal.contact.linkedin %} | {{ personal.contact.linkedin }}{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="cl-date">{{ date }}</div>
+
+  {% if recipient %}
+  <div class="cl-recipient">{{ recipient }}</div>
+  {% endif %}
+
+  <div class="cl-subject">Re: {{ subject }}</div>
+
+  <div class="cl-body">
+    {% for paragraph in paragraphs %}
+    <p>{{ paragraph }}</p>
+    {% endfor %}
+  </div>
+
+  <div class="cl-closing">
+    <p>{{ closing }}</p>
+    <p class="name">{{ personal.name }}</p>
+  </div>
+
+</body>
+</html>
