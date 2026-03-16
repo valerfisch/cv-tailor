@@ -101,57 +101,98 @@ def _derive_domains_worked(master_cv: dict) -> list[str]:
     return domains
 
 
-def research_company_angle(analysis: dict, master_cv: dict) -> str | None:
-    """Use Claude to suggest a personal connection angle based on company + candidate.
+def _build_personal_profile(master_cv: dict, notes: dict) -> str:
+    """Build a rich candidate personality profile for angle generation."""
+    personal = master_cv.get("personal", {})
+    sections = []
 
-    Returns a 1-2 sentence suggestion, or None on failure.
+    # Philosophy / what drives them
+    philosophy = notes.get("philosophy")
+    if philosophy:
+        sections.append(f"Core drive: {philosophy}")
+
+    # Personality traits
+    traits = notes.get("traits", [])
+    if traits:
+        sections.append("Personality:\n" + "\n".join(f"- {t}" for t in traits))
+
+    # Passion projects (the real stuff, not CV bullets)
+    passion_projects = notes.get("passion_projects", [])
+    if passion_projects:
+        lines = []
+        for p in passion_projects:
+            lines.append(f"- {p.get('what', '')}: {p.get('why', '')}")
+        sections.append("What excites them outside work:\n" + "\n".join(lines))
+
+    # Domain anecdotes
+    anecdotes = notes.get("anecdotes", [])
+    if anecdotes:
+        lines = []
+        for a in anecdotes:
+            lines.append(f"- [{a.get('domain', '')}] {a.get('text', '')}")
+        sections.append("Personal anecdotes:\n" + "\n".join(lines))
+
+    # Basic facts
+    languages = personal.get("languages", [])
+    domains_worked = notes.get("domains_worked", _derive_domains_worked(master_cv))
+    sections.append(
+        f"Languages: {', '.join(languages)}\n"
+        f"Domains worked in: {', '.join(domains_worked)}"
+    )
+
+    return "\n\n".join(sections)
+
+
+def research_company(analysis: dict, master_cv: dict) -> dict:
+    """Research a company and suggest a personal angle in one Haiku call.
+
+    Returns ``{"summary": str, "personal_angle": str}`` or empty dict on failure.
+    The summary covers what the company does, its mission/products, and what
+    makes the role interesting. The personal angle connects the candidate's
+    personality to the company.
     """
     company = analysis.get("company", "")
     domain = analysis.get("domain", "")
     role_title = analysis.get("role_title", "")
     if not company:
-        return None
+        return {}
 
-    # Gather candidate personal info for angle matching
-    personal = master_cv.get("personal", {})
-    interests = personal.get("interests", [])
-    languages = personal.get("languages", [])
-
-    # Derive domains from experience or load from personal_notes.yaml
     notes = _load_personal_notes()
-    domains_worked = notes.get("domains_worked", _derive_domains_worked(master_cv))
-
-    # Build candidate background from personal notes anecdotes
-    anecdote_lines = []
-    for anecdote in notes.get("anecdotes", []):
-        anecdote_lines.append(f"- {anecdote.get('text', '')}")
-
-    # Add interests as background lines
-    background_lines = [
-        f"- Interests: {', '.join(interests)}",
-        f"- Languages: {', '.join(languages)}",
-        f"- Domains worked in: {', '.join(domains_worked)}",
-    ] + anecdote_lines
+    profile = _build_personal_profile(master_cv, notes)
 
     client = anthropic.Anthropic()
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=512,
+        max_tokens=1024,
         system=(
-            "You are helping a job applicant find a genuine personal connection to a company "
-            "for their cover letter. Based on what you know about the company and the candidate's "
-            "background, suggest ONE concrete angle (1-2 sentences) they could use. "
-            "It should feel authentic, not generic. If the company's values, mission, or tech stack "
-            "connect to something specific about the candidate, highlight that. "
-            "If you don't know enough about the company, say so briefly and suggest a generic "
-            "domain-based angle instead. Return ONLY the suggestion text, nothing else."
+            "You research a company for a job applicant. You receive a company/role, "
+            "a job posting analysis, and a rich candidate profile.\n\n"
+            "Return a JSON object with two fields:\n\n"
+            "1. \"summary\": 2-4 sentences about the company. What they do, their "
+            "products/mission, tech stack if known, and what makes this role "
+            "interesting. Be specific. If you don't know the company, say so and "
+            "summarize what can be inferred from the job posting analysis.\n\n"
+            "2. \"personal_angle\": 1-2 sentences suggesting a personal connection "
+            "between who the candidate IS and what this company DOES. Draw from "
+            "passion projects, personality traits, or anecdotes. NEVER use the "
+            "pattern 'Your X aligns with their Y.' Good angles sound like something "
+            "the candidate would say over coffee. If you can't find a genuine "
+            "connection, say so rather than forcing one.\n\n"
+            "NEVER use em dashes.\n"
+            "Return ONLY valid JSON, no other text."
         ),
         messages=[{"role": "user", "content": (
             f"Company: {company}\n"
             f"Domain: {domain}\n"
             f"Role: {role_title}\n\n"
-            f"Candidate background:\n"
-            + "\n".join(background_lines)
+            f"## Job Posting Analysis\n```json\n"
+            f"{json.dumps(analysis, indent=2)}\n```\n\n"
+            f"Who this person is:\n{profile}"
         )}],
     )
-    return response.content[0].text.strip()
+
+    raw = response.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1]
+        raw = raw.rsplit("```", 1)[0]
+    return json.loads(raw)

@@ -282,30 +282,53 @@ def get_cv_preferences(analysis: dict) -> dict:
     if prefs["profile_type"] is None:
         raise KeyboardInterrupt
 
-    # 2. Framing strategy
-    framing_choices = [
-        questionary.Choice(
-            "As ML-adjacent (pipelines, deployment, 3D, production)",
-            value="ml_adjacent",
-        ),
-        questionary.Choice(
-            "As core strength (you're a builder who also does ML)",
-            value="core_strength",
-        ),
-        questionary.Choice(
-            "Minimize it (focus on ML/research only)",
-            value="minimize",
-        ),
-    ]
-    if role_type in ("fullstack", "frontend", "backend"):
-        rec_framing = "core_strength"
+    # 2. Framing strategy — adapts based on profile type
+    profile = prefs["profile_type"]
+    if profile == "fullstack":
+        # Full-stack focus: ask how to frame ML/thesis experience
+        framing_choices = [
+            questionary.Choice(
+                "As data-driven engineering (ML informs better systems)",
+                value="data_driven",
+            ),
+            questionary.Choice(
+                "As R&D capability (prototyping, experimentation, model deployment)",
+                value="rd_capability",
+            ),
+            questionary.Choice(
+                "Minimize it (keep focus on full-stack, mention ML briefly)",
+                value="minimize_ml",
+            ),
+        ]
+        rec_framing = "data_driven"
+        framing_question = "How should we frame your ML/thesis experience?"
     else:
-        rec_framing = "ml_adjacent"
+        # ML or hybrid focus: ask how to frame full-stack experience
+        framing_choices = [
+            questionary.Choice(
+                "As ML-adjacent (pipelines, deployment, 3D, production)",
+                value="ml_adjacent",
+            ),
+            questionary.Choice(
+                "As core strength (you're a builder who also does ML)",
+                value="core_strength",
+            ),
+            questionary.Choice(
+                "Minimize it (focus on ML/research only)",
+                value="minimize",
+            ),
+        ]
+        if role_type in ("fullstack", "frontend", "backend"):
+            rec_framing = "core_strength"
+        else:
+            rec_framing = "ml_adjacent"
+        framing_question = "How should we frame your full-stack experience?"
+
     framing_choices.sort(key=lambda c: c.value != rec_framing)
     framing_choices[0].title = f"{framing_choices[0].title} (recommended)"
 
     prefs["framing"] = questionary.select(
-        "How should we frame your full-stack experience?",
+        framing_question,
         choices=framing_choices,
     ).ask()
     if prefs["framing"] is None:
@@ -333,10 +356,11 @@ def get_cv_preferences(analysis: dict) -> dict:
 def get_cl_preferences(
     analysis: dict,
     *,
-    research_fn: "callable | None" = None,
+    research: dict | None = None,
 ) -> dict:
     """Ask cover letter preferences. Returns dict with CL-specific keys."""
     prefs = {}
+    research = research or {}
 
     prefs["cover_letter_tone"] = questionary.select(
         "Cover letter tone?",
@@ -349,6 +373,17 @@ def get_cl_preferences(
         raise KeyboardInterrupt
 
     console.print()
+
+    # Show company research summary before asking "why company"
+    company_summary = research.get("summary")
+    if company_summary:
+        console.print(Panel(
+            company_summary,
+            title="[bold]Company Research[/bold]",
+            border_style="blue",
+        ))
+        console.print()
+
     console.print("[bold]Cover letter context[/bold] (press Enter to skip any):")
 
     company = analysis.get("company", "this company")
@@ -402,15 +437,8 @@ def get_cl_preferences(
     else:
         prefs["cl_thesis_angle"] = "ml_research"
 
-    # Lazy company research
-    personal_suggestion = None
-    if research_fn is not None:
-        with console.status("[bold green]Researching company..."):
-            try:
-                personal_suggestion = research_fn()
-            except Exception:
-                pass
-
+    # Personal angle from research
+    personal_suggestion = research.get("personal_angle")
     if personal_suggestion:
         console.print()
         console.print(
