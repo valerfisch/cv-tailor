@@ -19,8 +19,11 @@ Return a JSON object with exactly these fields:
   "tone": "formal | conversational | startup-casual",
   "fit_score": 1-10,
   "fit_recommendation": "apply | consider | skip",
-  "fit_reasoning": "one sentence explaining the score"
+  "fit_reasoning": "one sentence explaining the score",
+  "required_applicant_info": [{"type": "salary_expectation | start_date | reference_number | other", "label": "short description (e.g. 'Salary expectation', 'Earliest start date', 'Reference number')", "value_from_posting": "any value already stated in the posting, or null"}]
 }
+
+For required_applicant_info: only include items the posting explicitly asks the applicant to provide or state (e.g. "please include your salary expectations", "state your earliest start date", "quote reference number ABC-123"). Do NOT infer — only capture when the posting makes it a clear request. Leave as empty list [] if none.
 
 Be precise. Only include skills explicitly mentioned. For red_flags and fit assessment, consider the candidate profile below:
 

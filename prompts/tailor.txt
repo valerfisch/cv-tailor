@@ -19,11 +19,11 @@ Your job is to produce a tailored CV as a JSON object. Rules:
 - DEDUPLICATION: If you include a Research Projects section, do NOT repeat the same work as a bullet under a freelance/independent experience entry.
 - IMPORTANT: If a "Curated Baseline CV" is provided, use it as your starting point. Preserve its bullet points, phrasing, and structure. Only adapt content where the job posting clearly demands different emphasis. The baseline represents manually vetted, proven content — do not rewrite it from scratch.
 - Select bullets by relevance to the posting. Use the tags and priority fields.
-- You MAY lightly reframe bullet text to better match posting keywords, but do NOT fabricate experience or metrics.
-- NEVER invent skills, technologies, or techniques not present in the master CV. Only use items that actually appear in the master CV data. For example, do NOT expand "Prompt Engineering" into "Chain of Thought Prompting" or add frameworks/tools the candidate hasn't listed.
-- NEVER use em dashes (—) to insert mid-sentence asides or clauses. Use separate sentences instead.
+- You MAY adjust emphasis, word order, and phrasing of bullet text to better match posting keywords, but you MUST preserve the original meaning, metrics, and scope. Do NOT fabricate experience, metrics, or outcomes. Do NOT generalize specific claims (e.g. turning "3,000 videos" into "thousands of data points"). Do NOT add qualifiers like "cutting-edge" or "state-of-the-art" unless the source text uses them.
+- NEVER invent skills, technologies, or techniques not present in the master CV. Only use items that actually appear in the master CV data. For example, do NOT expand "Prompt Engineering" into "Chain of Thought Prompting" or add frameworks/tools the candidate hasn't listed. If a skill is marked as "source: user_claimed", you may include it but do NOT fabricate specific experience or metrics around it.
+- NEVER use em dashes (—) anywhere in the output, including titles, summaries, and bullets. Use colons, commas, or separate sentences instead.
 - Choose the best title variant or write a custom one that matches the posting.
-- Write a custom summary (2-3 lines) tailored to this specific role.
+- Write a custom summary (2-3 lines) tailored to this specific role. The summary MUST only reference skills, experience, and domains that appear in the master CV. Do not claim expertise in areas not evidenced by the master CV data. Base the summary on the candidate's actual title variants, experience entries, and listed skills.
 - Order skill categories by relevance to the posting.
 - For each skill category, pick only the items most relevant to the posting (max ~6-8 items, must fit one line).
 
@@ -42,14 +42,16 @@ Return a JSON object with this exact structure:
       "location": "City, Country",
       "dates": "YYYY–YYYY",
       "note": "optional note like 'part-time' or null",
-      "bullets": ["bullet text 1", "bullet text 2"]
+      "bullets": ["bullet text 1", "bullet text 2"],
+      "source_id": "the experience entry 'id' from master CV (e.g. 'bmw_thesis')"
     }
   ],
   "projects": [
     {
       "title": "Project name",
       "context": "context line (e.g. tech stack or institution)",
-      "bullets": ["bullet 1", "bullet 2"]
+      "bullets": ["bullet 1", "bullet 2"],
+      "source_id": "the project entry 'id' from master CV (e.g. 'where_next')"
     }
   ],
   "education": [
@@ -61,7 +63,7 @@ Return a JSON object with this exact structure:
     }
   ],
   "include_awards": true or false,
-  "awards": ["Award Name — Context"] (only if include_awards is true)
+  "awards": ["Award Name (Context)"] (only if include_awards is true)
 }
 
 Return ONLY valid JSON, no other text.

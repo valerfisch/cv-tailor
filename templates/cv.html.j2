@@ -15,6 +15,9 @@
       {%- if personal.contact.linkedin %} | {{ personal.contact.linkedin }}{% endif %}
       {%- if personal.contact.github %} | {{ personal.contact.github }}{% endif %}
     </div>
+    {% if header_notes %}
+    <div class="header-notes">{{ header_notes | join(' | ') }}</div>
+    {% endif %}
   </div>
 
   <!-- Summary -->
