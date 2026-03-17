@@ -161,6 +161,16 @@ def display_analysis(analysis: dict) -> None:
         for flag in red_flags:
             console.print(f"  [yellow]![/yellow] {flag}")
 
+    # Required applicant info
+    req_info = analysis.get("required_applicant_info", [])
+    if req_info:
+        console.print()
+        console.print("  [bold cyan]Required from applicant:[/bold cyan]")
+        for item in req_info:
+            val = item.get("value_from_posting")
+            suffix = f" [dim]({val})[/dim]" if val else ""
+            console.print(f"  [cyan]>[/cyan] {item.get('label', item.get('type', '?'))}{suffix}")
+
     # Fit assessment
     score = analysis.get("fit_score")
     rec = analysis.get("fit_recommendation", "")
@@ -173,6 +183,38 @@ def display_analysis(analysis: dict) -> None:
             + (f"  {reasoning}" if reasoning else "")
         )
     console.print()
+
+
+def get_required_info(analysis: dict) -> list[dict]:
+    """Prompt user for values that the posting explicitly requires from applicants.
+
+    Returns list of ``{"type": str, "label": str, "value": str}`` dicts,
+    only for items where the user provided a non-empty answer.
+    """
+    items = analysis.get("required_applicant_info", [])
+    if not items:
+        return []
+
+    console.print("[bold]The posting asks you to provide:[/bold]")
+    results = []
+    for item in items:
+        label = item.get("label", item.get("type", "info"))
+        default = item.get("value_from_posting") or ""
+        value = questionary.text(
+            f"  {label}:",
+            default=default,
+        ).ask()
+        if value is None:
+            raise KeyboardInterrupt
+        value = value.strip()
+        if value:
+            results.append({
+                "type": item.get("type", "other"),
+                "label": label,
+                "value": value,
+            })
+    console.print()
+    return results
 
 
 def _collect_known_skills(master: dict) -> set[str]:

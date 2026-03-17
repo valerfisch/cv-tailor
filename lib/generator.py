@@ -137,6 +137,92 @@ def score_content_relevance(
     return result
 
 
+def validate_claims(generated: dict, master_cv: dict, doc_type: str = "cv") -> list[dict]:
+    """Validate generated content against master CV using Haiku.
+
+    Returns a list of flagged claims: [{"text": str, "issue": str}].
+    Empty list means no issues found.
+    """
+    if doc_type == "cv":
+        # Extract all generated text: summary + bullets
+        claims = [generated.get("summary", "")]
+        for exp in generated.get("experience", []):
+            claims.extend(exp.get("bullets", []))
+        for proj in generated.get("projects", []):
+            claims.extend(proj.get("bullets", []))
+    else:
+        # Cover letter: all paragraphs
+        claims = generated.get("paragraphs", [])
+
+    if not claims:
+        return []
+
+    # Build a compact reference of what's actually in the master CV
+    skills_flat = []
+    for cat in master_cv.get("skills", []):
+        skills_flat.extend(cat.get("items", []))
+
+    exp_bullets = []
+    for exp in master_cv.get("experience", []):
+        company = exp.get("company", "")
+        for bullet in exp.get("bullets", []):
+            text = bullet if isinstance(bullet, str) else bullet.get("text", "")
+            if text:
+                exp_bullets.append(f"[{company}] {text}")
+
+    proj_bullets = []
+    for proj in master_cv.get("projects", []):
+        title = proj.get("title", "")
+        for bullet in proj.get("bullets", []):
+            text = bullet if isinstance(bullet, str) else bullet.get("text", "")
+            if text:
+                proj_bullets.append(f"[{title}] {text}")
+
+    reference = (
+        f"Skills: {', '.join(skills_flat)}\n\n"
+        f"Experience bullets:\n" + "\n".join(exp_bullets) + "\n\n"
+        f"Project bullets:\n" + "\n".join(proj_bullets)
+    )
+
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1024,
+        system=(
+            "You are a fact-checker for a CV/cover letter. You receive generated text "
+            "and the candidate's actual CV data. Your job is to flag any claims in the "
+            "generated text that are NOT supported by the CV data.\n\n"
+            "Flag these types of issues:\n"
+            "- Skills, technologies, or tools mentioned that don't appear in the CV data\n"
+            "- Metrics or numbers that don't match the source (e.g. '95% accuracy' when source says 'MSE 0.0011')\n"
+            "- Inflated scope (e.g. 'led a team' when source says 'developed')\n"
+            "- Fabricated company facts or achievements\n"
+            "- Domain expertise claimed without evidence in CV\n\n"
+            "Do NOT flag:\n"
+            "- Reasonable rephrasing that preserves meaning\n"
+            "- Soft skills or personality traits in cover letters\n"
+            "- General statements about interest or motivation\n\n"
+            "Return a JSON array of objects: [{\"text\": \"the problematic claim\", "
+            "\"issue\": \"brief explanation\"}]. Return an empty array [] if no issues found.\n"
+            "Return ONLY valid JSON, no other text."
+        ),
+        messages=[{"role": "user", "content": (
+            f"## Generated Text to Check\n{json.dumps(claims, indent=2)}\n\n"
+            f"## Candidate's Actual CV Data (ground truth)\n{reference}"
+        )}],
+    )
+
+    raw = response.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1]
+        raw = raw.rsplit("```", 1)[0]
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+
+
 def generate_cover_letter(analysis: dict, tailored_cv: dict, user_prefs: dict) -> dict:
     """Generate a cover letter based on posting analysis and tailored CV."""
     system_prompt = _load_prompt("cover_letter")
@@ -263,3 +349,124 @@ def regenerate_paragraph(
         messages=[{"role": "user", "content": user_content}],
     )
     return response.content[0].text.strip()
+
+
+def regenerate_summary(
+    tailored_cv: dict,
+    analysis: dict,
+    feedback: str | None = None,
+) -> str:
+    """Regenerate the professional summary for a tailored CV."""
+    master_cv = _load_master_cv()
+
+    system_prompt = (
+        "You are rewriting the professional summary for a CV. "
+        "The summary should be 2-3 sentences that highlight the candidate's "
+        "most relevant qualifications for the target role. "
+        "Do NOT hallucinate skills, experiences, or metrics not in the CV data. "
+        "NEVER use em dashes. Use separate sentences instead. "
+        "Return ONLY the summary text, no JSON, no quotes."
+    )
+
+    user_content = (
+        f"## Current CV\n```json\n{json.dumps(tailored_cv, indent=2)}\n```\n\n"
+        f"## Job Posting Analysis\n```json\n{json.dumps(analysis, indent=2)}\n```\n\n"
+        f"## Master CV\n```yaml\n{yaml.dump(master_cv, default_flow_style=False)}\n```"
+    )
+
+    if feedback:
+        user_content += f"\n\n## User Feedback\n{feedback}"
+
+    user_content += "\n\nWrite a new professional summary. Return ONLY the summary text."
+
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=512,
+        temperature=0.8,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_content}],
+    )
+    return response.content[0].text.strip()
+
+
+def regenerate_bullet(
+    tailored_cv: dict,
+    analysis: dict,
+    bullet_text: str,
+    source_type: str,
+    feedback: str | None = None,
+) -> str:
+    """Rewrite a single CV bullet point, grounded in master CV data."""
+    master_cv = _load_master_cv()
+
+    system_prompt = (
+        "You are rewriting a single CV bullet point. "
+        "The bullet was flagged for potential issues (hallucination, inflated scope, wrong metrics). "
+        "Rewrite it so it is accurate, grounded in the candidate's actual experience from the master CV. "
+        "Do NOT fabricate skills, metrics, or outcomes not in the master CV data. "
+        "Keep the bullet concise (one sentence, starting with a strong action verb). "
+        "NEVER use em dashes. Use separate clauses with commas or semicolons instead. "
+        "Return ONLY the rewritten bullet text, no JSON, no quotes, no bullet marker."
+    )
+
+    context_label = "experience" if source_type == "experience" else "project"
+    user_content = (
+        f"## Bullet to Rewrite ({context_label})\n{bullet_text}\n\n"
+        f"## Current Tailored CV\n```json\n{json.dumps(tailored_cv, indent=2)}\n```\n\n"
+        f"## Job Posting Analysis\n```json\n{json.dumps(analysis, indent=2)}\n```\n\n"
+        f"## Master CV (ground truth)\n```yaml\n{yaml.dump(master_cv, default_flow_style=False)}\n```"
+    )
+
+    if feedback:
+        user_content += f"\n\n## User Feedback\n{feedback}"
+
+    user_content += "\n\nRewrite this bullet. Return ONLY the bullet text."
+
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=256,
+        temperature=0.8,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_content}],
+    )
+    return response.content[0].text.strip()
+
+
+def polish_cover_letter(paragraphs: list[str], analysis: dict, user_prefs: dict) -> list[str]:
+    """Polish approved paragraphs for cohesion, flow, and smooth transitions."""
+    master_cv = _load_master_cv()
+    candidate_name = master_cv.get("personal", {}).get("name", "the candidate")
+
+    system_prompt = (
+        f"You are polishing a cover letter for {candidate_name}. "
+        "The individual paragraphs have been approved. Your job is to improve how they read together as a whole. "
+        "Smooth out transitions between paragraphs so the letter flows naturally. "
+        "Remove redundancy where ideas or phrases repeat across paragraphs. "
+        "Ensure a consistent tone throughout. "
+        "Do NOT change the substance, claims, or meaning of any paragraph. "
+        "Do NOT add new information, skills, or experiences. "
+        "Do NOT remove entire paragraphs or add new ones. "
+        "NEVER use em dashes to insert mid-sentence asides or clauses. Use separate sentences instead. "
+        "Keep the same number of paragraphs. "
+        "Return a JSON array of the polished paragraphs, e.g. [\"paragraph 1\", \"paragraph 2\", ...]. "
+        "Return ONLY valid JSON, no other text."
+    )
+
+    numbered = "\n\n".join(
+        f"[Paragraph {i + 1}]:\n{p}"
+        for i, p in enumerate(paragraphs)
+    )
+
+    user_content = (
+        f"## Cover Letter Paragraphs\n{numbered}\n\n"
+        f"## Job Posting Analysis\n```json\n{json.dumps(analysis, indent=2)}\n```\n\n"
+        f"## User Preferences\n```json\n{json.dumps(user_prefs, indent=2)}\n```\n\n"
+        "Polish these paragraphs for cohesion and flow. Return ONLY a JSON array of the polished paragraphs."
+    )
+
+    result = _call_claude(system_prompt, user_content)
+    if isinstance(result, list) and len(result) == len(paragraphs):
+        return result
+    return paragraphs

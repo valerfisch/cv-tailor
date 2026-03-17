@@ -62,6 +62,24 @@ def _drop_additional(data: dict) -> dict:
     return data
 
 
+def _remove_experience(data: dict, index: int) -> dict:
+    """Remove a specific experience entry by index."""
+    data = copy.deepcopy(data)
+    experiences = data.get("experience", [])
+    if 0 <= index < len(experiences):
+        experiences.pop(index)
+    return data
+
+
+def _remove_project(data: dict, index: int) -> dict:
+    """Remove a specific project entry by index."""
+    data = copy.deepcopy(data)
+    projects = data.get("projects", [])
+    if 0 <= index < len(projects):
+        projects.pop(index)
+    return data
+
+
 def get_available_reductions(data: dict) -> list[dict]:
     """Return available content reductions based on current CV data.
 
@@ -102,6 +120,34 @@ def get_available_reductions(data: dict) -> list[dict]:
             "label": f"Trim {company} bullets (keep 2)",
             "apply": _trim_longest_experience,
         })
+
+    # Remove individual experience entries (short ones with <= 3 bullets)
+    if len(experiences) > 1:
+        for i, exp in enumerate(experiences):
+            bullet_count = len(exp.get("bullets", []))
+            if bullet_count <= 3:
+                company = exp.get("company", "experience")
+                title = exp.get("title", "")
+                label = f"Remove {company}"
+                if title:
+                    label += f" ({title})"
+                label += f" [{bullet_count} bullets]"
+                reductions.append({
+                    "id": f"remove_exp:{i}",
+                    "label": label,
+                    "apply": lambda d, idx=i: _remove_experience(d, idx),
+                })
+
+    # Remove individual projects
+    projects = data.get("projects", [])
+    if projects:
+        for i, proj in enumerate(projects):
+            title = proj.get("title", f"Project {i + 1}")
+            reductions.append({
+                "id": f"remove_proj:{i}",
+                "label": f"Remove project: {title}",
+                "apply": lambda d, idx=i: _remove_project(d, idx),
+            })
 
     # Languages & visa
     if not data.get("hide_additional"):
