@@ -55,6 +55,28 @@ def _trim_longest_experience(data: dict) -> dict:
     return data
 
 
+def _trim_straightlabs(data: dict) -> dict:
+    """Drop bullets from the straightlabs experience entry (keep 2)."""
+    data = copy.deepcopy(data)
+    for exp in data.get("experience", []):
+        company = exp.get("company", "").lower()
+        if "straightlabs" in company:
+            if len(exp.get("bullets", [])) > 2:
+                exp["bullets"] = exp["bullets"][:2]
+            break
+    return data
+
+
+def _reduce_all_by_one(data: dict) -> dict:
+    """Remove the last bullet from every experience entry that has more than one."""
+    data = copy.deepcopy(data)
+    for exp in data.get("experience", []):
+        bullets = exp.get("bullets", [])
+        if len(bullets) > 1:
+            exp["bullets"] = bullets[:-1]
+    return data
+
+
 def _drop_additional(data: dict) -> dict:
     """Flag to hide languages & work authorization."""
     data = copy.deepcopy(data)
@@ -119,6 +141,28 @@ def get_available_reductions(data: dict) -> list[dict]:
             "id": "trim_experience",
             "label": f"Trim {company} bullets (keep 2)",
             "apply": _trim_longest_experience,
+        })
+
+    # Trim straightlabs specifically
+    straightlabs = next(
+        (e for e in experiences if "straightlabs" in e.get("company", "").lower()),
+        None,
+    )
+    if straightlabs and len(straightlabs.get("bullets", [])) > 2:
+        n = len(straightlabs["bullets"])
+        reductions.append({
+            "id": "trim_straightlabs",
+            "label": f"Trim straightlabs bullets ({n} → 2)",
+            "apply": _trim_straightlabs,
+        })
+
+    # Reduce all experience entries by one bullet
+    has_trimmable = any(len(e.get("bullets", [])) > 1 for e in experiences)
+    if has_trimmable:
+        reductions.append({
+            "id": "reduce_all_by_one",
+            "label": "Reduce all experience entries by 1 bullet",
+            "apply": _reduce_all_by_one,
         })
 
     # Remove individual experience entries (short ones with <= 3 bullets)
