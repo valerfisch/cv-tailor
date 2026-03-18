@@ -730,6 +730,55 @@ def _review_cv_claims(
     return tailored_cv
 
 
+def _write_header_review_file(header_notes: list[str], review_path: Path) -> None:
+    """Write CV header notes to a markdown file for editing."""
+    lines = [
+        "# CV Header Notes Review",
+        "",
+        "Edit the notes below. These appear below the contact line on your CV.",
+        "Delete a line to remove it. Save the file and press Enter in the terminal.",
+        "",
+    ]
+    for note in header_notes:
+        lines.append(f"- {note}")
+    lines.append("")
+
+    review_path.parent.mkdir(parents=True, exist_ok=True)
+    review_path.write_text("\n".join(lines))
+
+
+def _parse_header_review_file(review_path: Path) -> list[str]:
+    """Parse header notes review file. Returns list of note strings."""
+    content = review_path.read_text()
+    notes = []
+    for line in content.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("- ") and not stripped.startswith("- [ ]"):
+            note = stripped[2:].strip()
+            if note:
+                notes.append(note)
+    return notes
+
+
+def _review_header_notes(header_notes: list[str], company_name: str) -> list[str]:
+    """File-based header notes review. Returns the approved notes list."""
+    review_path = OUTPUT_DIR / company_name / "header_review.md"
+    _write_header_review_file(header_notes, review_path)
+
+    console.print()
+    console.print(f"  [bold]Review file:[/bold] {review_path}")
+    console.print("  Edit header notes, then save the file.")
+
+    try:
+        input("  Press Enter when done editing... ")
+    except EOFError:
+        raise KeyboardInterrupt
+
+    header_notes = _parse_header_review_file(review_path)
+    review_path.unlink(missing_ok=True)
+    return header_notes
+
+
 def _process_posting(master: dict) -> None:
     """Process a single job posting: analyze, tailor, render."""
     # Step 1: Get job posting
@@ -849,6 +898,9 @@ def _process_posting(master: dict) -> None:
 
     # Step 5: Render CV PDF (with interactive page fitting)
     cv_data = _build_cv_render_data(master, tailored_cv, company_name, required_info)
+
+    if cv_data["header_notes"]:
+        cv_data["header_notes"] = _review_header_notes(cv_data["header_notes"], company_name)
 
     with console.status("[bold green]Rendering CV (page check)..."):
         try:
