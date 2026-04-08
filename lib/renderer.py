@@ -43,27 +43,14 @@ def _remove_bachelor(data: dict) -> dict:
     return data
 
 
-def _trim_longest_experience(data: dict) -> dict:
-    """Drop bullets from the experience entry with the most bullets (keep 2)."""
+def _trim_position(data: dict, index: int) -> dict:
+    """Trim an experience entry at *index* to 2 bullets."""
     data = copy.deepcopy(data)
     experiences = data.get("experience", [])
-    if not experiences:
-        return data
-    longest = max(experiences, key=lambda e: len(e.get("bullets", [])))
-    if len(longest.get("bullets", [])) > 2:
-        longest["bullets"] = longest["bullets"][:2]
-    return data
-
-
-def _trim_straightlabs(data: dict) -> dict:
-    """Drop bullets from the straightlabs experience entry (keep 2)."""
-    data = copy.deepcopy(data)
-    for exp in data.get("experience", []):
-        company = exp.get("company", "").lower()
-        if "straightlabs" in company:
-            if len(exp.get("bullets", [])) > 2:
-                exp["bullets"] = exp["bullets"][:2]
-            break
+    if 0 <= index < len(experiences):
+        exp = experiences[index]
+        if len(exp.get("bullets", [])) > 2:
+            exp["bullets"] = exp["bullets"][:2]
     return data
 
 
@@ -132,29 +119,17 @@ def get_available_reductions(data: dict) -> list[dict]:
             "apply": _remove_bachelor,
         })
 
-    # Trim longest experience entry
+    # Trim individual experience entries to 2 bullets
     experiences = data.get("experience", [])
-    longest = max(experiences, key=lambda e: len(e.get("bullets", [])), default=None)
-    if longest and len(longest.get("bullets", [])) > 2:
-        company = longest.get("company", "experience")
-        reductions.append({
-            "id": "trim_experience",
-            "label": f"Trim {company} bullets (keep 2)",
-            "apply": _trim_longest_experience,
-        })
-
-    # Trim straightlabs specifically
-    straightlabs = next(
-        (e for e in experiences if "straightlabs" in e.get("company", "").lower()),
-        None,
-    )
-    if straightlabs and len(straightlabs.get("bullets", [])) > 2:
-        n = len(straightlabs["bullets"])
-        reductions.append({
-            "id": "trim_straightlabs",
-            "label": f"Trim straightlabs bullets ({n} → 2)",
-            "apply": _trim_straightlabs,
-        })
+    for i, exp in enumerate(experiences):
+        n = len(exp.get("bullets", []))
+        if n > 2:
+            company = exp.get("company", "experience")
+            reductions.append({
+                "id": f"trim_pos:{i}",
+                "label": f"Trim {company} bullets ({n} -> 2)",
+                "apply": lambda d, idx=i: _trim_position(d, idx),
+            })
 
     # Reduce all experience entries by one bullet
     has_trimmable = any(len(e.get("bullets", [])) > 1 for e in experiences)

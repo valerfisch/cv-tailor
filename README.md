@@ -16,6 +16,7 @@ Interactive CLI tool that generates tailored CVs and cover letters as PDFs. Past
 10. Claude (sonnet) writes a cover letter grounded in verified company research
 11. Cover letter claims are validated the same way, then you review and polish via a markdown file
 12. Both documents are rendered to PDF matching your CV design
+13. Skill gaps from the posting are added to a rolling weekly learning plan under `learning/` (one topic per ISO week)
 
 All CV data lives in `master_cv.yaml`, a tagged superset of all your experience, projects, skills, and education. The AI selects from this based on the posting, so you never lose content between versions.
 
@@ -134,6 +135,7 @@ cv-tailor/
 │   ├── generator.py             # CV + cover letter generation + claim validation (Claude sonnet/haiku)
 │   ├── renderer.py              # Jinja2 + WeasyPrint PDF rendering + page fitting
 │   ├── interactive.py           # Terminal Q&A flow + skill gap detection
+│   ├── learning.py              # Rolling weekly learning plan from skill gaps
 │   └── sync.py                  # Sync rewrite files → master_cv.yaml
 ├── templates/
 │   ├── cv.html.j2               # CV layout template

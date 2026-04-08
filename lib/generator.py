@@ -42,7 +42,7 @@ def _load_master_cv() -> dict:
     return yaml.safe_load(MASTER_CV_PATH.read_text())
 
 
-def _call_claude(system: str, user_content: str, model: str = "claude-sonnet-4-20250514") -> dict:
+def _call_claude(system: str, user_content: str, model: str = "claude-opus-4-6") -> dict:
     """Call Claude and parse JSON response."""
     client = anthropic.Anthropic()
     response = client.messages.create(
@@ -104,7 +104,7 @@ def score_content_relevance(
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-sonnet-4-6",
         max_tokens=1024,
         system=(
             "You score CV/cover-letter content by relevance to a job posting. "
@@ -186,7 +186,7 @@ def validate_claims(generated: dict, master_cv: dict, doc_type: str = "cv") -> l
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-sonnet-4-6",
         max_tokens=1024,
         system=(
             "You are a fact-checker for a CV/cover letter. You receive generated text "
@@ -342,7 +342,7 @@ def regenerate_paragraph(
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-opus-4-6",
         max_tokens=1024,
         temperature=0.8,
         system=system_prompt,
@@ -381,7 +381,7 @@ def regenerate_summary(
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-opus-4-6",
         max_tokens=512,
         temperature=0.8,
         system=system_prompt,
@@ -425,7 +425,7 @@ def regenerate_bullet(
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-opus-4-6",
         max_tokens=256,
         temperature=0.8,
         system=system_prompt,

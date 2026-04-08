@@ -3,6 +3,7 @@
 
 import re
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
@@ -13,6 +14,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from lib.analyzer import analyze_posting, research_company
+from lib.learning import update_with_posting as update_learning_plan
 from lib.generator import generate_cover_letter, generate_tailored_cv, polish_cover_letter, regenerate_bullet, regenerate_paragraph, regenerate_summary, validate_claims
 from lib.interactive import check_skill_gaps, console, display_analysis, get_cl_preferences, get_cv_preferences, get_job_posting, get_required_info
 from lib.renderer import apply_reductions, get_available_reductions, render_cover_letter, render_cv, render_cv_doc
@@ -786,7 +788,7 @@ def _process_posting(master: dict) -> None:
     console.print()
 
     # Step 2: Analyze posting
-    with console.status("[bold green]Analyzing posting (Claude Haiku)..."):
+    with console.status("[bold green]Analyzing posting (Claude Sonnet)..."):
         try:
             analysis = analyze_posting(posting)
         except Exception as e:
@@ -795,6 +797,23 @@ def _process_posting(master: dict) -> None:
 
     console.print("  [dim]Analysis complete[/dim]")
     display_analysis(analysis)
+
+    # Kick off learning-plan update in the background (fire and forget).
+    # Merges new skill gaps into the global learning/plan.md, one topic per week.
+    def _learning_job(_analysis: dict, _master: dict) -> None:
+        try:
+            added, path = update_learning_plan(_analysis, _master)
+        except Exception as e:
+            console.print(f"[dim red]Learning plan update failed: {e}[/dim red]")
+            return
+        if added:
+            console.print(f"  [dim]Learning plan: +{added} skill(s) -> {path}[/dim]")
+        else:
+            console.print(f"  [dim]Learning plan: no new skills ({path})[/dim]")
+
+    threading.Thread(
+        target=_learning_job, args=(analysis, master), daemon=True
+    ).start()
 
     # Skip recommendation gate
     rec = analysis.get("fit_recommendation", "apply")

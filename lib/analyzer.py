@@ -66,7 +66,7 @@ def _build_candidate_profile(master_cv: dict) -> str:
 
 
 def analyze_posting(posting_text: str) -> dict:
-    """Send job posting to Claude haiku for structured analysis. Returns parsed JSON."""
+    """Send job posting to Claude Sonnet for structured analysis. Returns parsed JSON."""
     client = anthropic.Anthropic()
     system_prompt = _load_prompt("analyze")
 
@@ -76,7 +76,7 @@ def analyze_posting(posting_text: str) -> dict:
     system_prompt = system_prompt.replace("{candidate_profile}", candidate_profile)
 
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-sonnet-4-6",
         max_tokens=2048,
         system=system_prompt,
         messages=[{"role": "user", "content": posting_text}],
@@ -199,7 +199,7 @@ def research_company(analysis: dict, master_cv: dict) -> dict:
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-sonnet-4-6",
         max_tokens=1024,
         system=(
             "You research a company for a job applicant. You receive a company/role, "
@@ -243,3 +243,75 @@ def research_company(analysis: dict, master_cv: dict) -> dict:
         raw = raw.split("\n", 1)[1]
         raw = raw.rsplit("```", 1)[0]
     return json.loads(raw)
+
+
+def analyze_skill_growth(analysis: dict, master_cv: dict) -> list[dict]:
+    """Identify skill gaps from a posting and produce ~1h/day learning plans.
+
+    Asks Sonnet to compare the posting's required/preferred competencies to the
+    candidate's current skills, sort the gaps by impact on client attractiveness,
+    and emit actionable learning schedules. Returns a list of skill dicts ranked
+    by impact (most important first).
+    """
+    candidate_profile = _build_candidate_profile(master_cv)
+    current_skills = master_cv.get("skills", [])
+    skills_block = yaml.dump(current_skills, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=8192,
+        system=(
+            "You are a career development coach for a software engineer. You receive "
+            "a job posting analysis and the candidate's current skills/profile. Your "
+            "job is to identify fields, technologies, or competencies the candidate "
+            "should study to become more attractive to clients posting roles like "
+            "this one.\n\n"
+            "Steps:\n"
+            "1. Extract every distinct skill, tool, methodology, or domain area the "
+            "posting expects (required AND nice-to-have).\n"
+            "2. Cross-reference against the candidate's current skills. Drop anything "
+            "they already have at a working level.\n"
+            "3. Sort the remaining gaps by impact on overall employability (not just "
+            "this single role): foundational/high-leverage skills first, niche or "
+            "low-transfer ones last.\n"
+            "4. For each gap, produce a learning schedule the candidate can follow "
+            "at roughly 1 hour per day, 5 days per week (so ~5h per week). The plan "
+            "is allocated one topic per week, so each skill spans one or more whole "
+            "weeks. Steps must be concrete: name specific resources (official docs, "
+            "well-known books, free courses, small build-it-yourself projects). "
+            "Avoid vague advice like 'read about X'.\n\n"
+            "Return ONLY a JSON array. Each element is an object with:\n"
+            '  "name": canonical skill name (short, e.g. "Kubernetes", "Rust", '
+            '"Event-driven architecture"),\n'
+            '  "why": one sentence on why this matters for employability,\n'
+            '  "weeks": integer number of weeks (1 to 6),\n'
+            '  "tasks": array of weekly task groups, one per week. Each is an '
+            'object: {"week": 1, "items": ["day 1: ...", "day 2: ...", ...]} with '
+            "5 daily items of ~1h each.\n\n"
+            "Order the array from highest to lowest impact. Use canonical names so "
+            "the same skill from different postings can be deduped. Return AT MOST "
+            "5 skills, the highest-impact ones only.\n\n"
+            "NEVER use em dashes. Use commas, colons, or parentheses instead.\n"
+            "Return ONLY valid JSON, no markdown fences or prose."
+        ),
+        messages=[{"role": "user", "content": (
+            f"## Job posting analysis\n```json\n{json.dumps(analysis, indent=2)}\n```\n\n"
+            f"## Candidate profile\n{candidate_profile}\n\n"
+            f"## Candidate current skills\n```yaml\n{skills_block}```"
+        )}],
+    )
+
+    raw = response.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1]
+        raw = raw.rsplit("```", 1)[0]
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        # Truncation safety net: trim to the last complete object inside the array.
+        if raw.lstrip().startswith("["):
+            end = raw.rfind("}")
+            if end != -1:
+                return json.loads(raw[: end + 1] + "]")
+        raise
