@@ -87,6 +87,16 @@
   </div>
   {% endfor %}
 
+  <!-- Awards -->
+  {% if include_awards and awards %}
+  <h2>Awards</h2>
+  <ul class="awards">
+    {% for award in awards %}
+    <li>{{ award }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
   <!-- Additional -->
   {% if not hide_additional %}
   <div class="additional">

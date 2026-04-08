@@ -54,7 +54,7 @@ def sync_master_cv() -> None:
 
     client = anthropic.Anthropic()
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-opus-4-6",
         max_tokens=8192,
         system=SYNC_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_content}],

@@ -1,8 +1,10 @@
 __pycache__/
+.vscode/
 .venv/
 *.pyc
 output/
 *.bak
+.env
 
 # Personal data — never commit these
 master_cv.yaml
@@ -13,3 +15,4 @@ test.md
 cvs/
 research/
 *.pdf
+learning/

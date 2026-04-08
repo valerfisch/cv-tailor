@@ -300,7 +300,7 @@ def check_skill_gaps(analysis: dict, master: dict) -> list[dict]:
 
 def get_cv_preferences(analysis: dict) -> dict:
     """Ask CV-related preferences. Returns dict with profile_type, framing,
-    include_projects, include_cover_letter."""
+    include_projects, include_awards, include_cover_letter."""
     prefs = {}
 
     # 1. CV profile type
@@ -382,6 +382,14 @@ def get_cv_preferences(analysis: dict) -> dict:
         default=True,
     ).ask()
     if prefs["include_projects"] is None:
+        raise KeyboardInterrupt
+
+    # 3b. Include awards section?
+    prefs["include_awards"] = questionary.confirm(
+        "Include awards section?",
+        default=True,
+    ).ask()
+    if prefs["include_awards"] is None:
         raise KeyboardInterrupt
 
     # 4. Cover letter?

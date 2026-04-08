@@ -62,8 +62,8 @@ Return a JSON object with this exact structure:
       "details": "one-line detail"
     }
   ],
-  "include_awards": true or false,
-  "awards": ["Award Name (Context)"] (only if include_awards is true)
+  "include_awards": true or false (set to false if user preference "include_awards" is false; otherwise true only when relevant awards exist in the master CV),
+  "awards": ["Award Name (Context)"] (only if include_awards is true; pick the most relevant awards from the master CV)
 }
 
 Return ONLY valid JSON, no other text.
