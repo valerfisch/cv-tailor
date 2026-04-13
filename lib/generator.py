@@ -470,3 +470,57 @@ def polish_cover_letter(paragraphs: list[str], analysis: dict, user_prefs: dict)
     if isinstance(result, list) and len(result) == len(paragraphs):
         return result
     return paragraphs
+
+
+def generate_outreach_message(
+    analysis: dict,
+    tailored_cv: dict,
+    user_prefs: dict,
+) -> dict:
+    """Generate a cold outreach email/message for a company.
+
+    Returns ``{"subject": str, "message": str}``.
+    """
+    master_cv = _load_master_cv()
+    candidate_name = master_cv.get("personal", {}).get("name", "the candidate")
+    personal = master_cv.get("personal", {})
+    contact = personal.get("contact", {})
+
+    system_prompt = (
+        f"You are writing a cold outreach email for {candidate_name}, "
+        "a software engineer reaching out to a company to express interest and "
+        "ask about opportunities. You receive the company analysis, the candidate's "
+        "tailored CV content, and their personal details.\n\n"
+        "Write a polite, concise, and compelling message that:\n"
+        "1. Introduces the candidate briefly\n"
+        "2. Shows genuine knowledge of the company (reference specific products, "
+        "tech, or initiatives from the analysis)\n"
+        "3. Highlights 2-3 of the candidate's most relevant strengths for this "
+        "company, with concrete examples (awards, metrics, projects)\n"
+        "4. Asks to get in touch\n"
+        "5. Mentions the attached CV and provides contact details\n\n"
+        "Rules:\n"
+        "- Keep it under 250 words (body only, excluding greeting/closing)\n"
+        "- Use a warm but professional tone\n"
+        "- NEVER fabricate skills, metrics, or experiences not in the CV data\n"
+        "- NEVER fabricate company facts not in the analysis\n"
+        "- NEVER use em dashes. Use commas, periods, colons, or parentheses instead\n"
+        "- Do NOT include the subject line in the message body\n\n"
+        "Return a JSON object with exactly:\n"
+        '  "subject": "short email subject line (under 60 chars)",\n'
+        '  "message": "the full message text including greeting and closing"\n\n'
+        "Return ONLY valid JSON, no other text."
+    )
+
+    user_content = (
+        f"## Company Analysis\n```json\n{json.dumps(analysis, indent=2)}\n```\n\n"
+        f"## Tailored CV Content\n```json\n{json.dumps(tailored_cv, indent=2)}\n```\n\n"
+        f"## User Preferences\n```json\n{json.dumps(user_prefs, indent=2)}\n```\n\n"
+        f"## Candidate Contact\n"
+        f"Name: {candidate_name}\n"
+        f"Email: {contact.get('email', '')}\n"
+        f"Phone: {contact.get('phone', '')}\n"
+        f"Location: {contact.get('location', '')}\n"
+    )
+
+    return _call_claude(system_prompt, user_content)

@@ -25,7 +25,7 @@ Your job is to produce a tailored CV as a JSON object. Rules:
 - Choose the best title variant or write a custom one that matches the posting.
 - Write a custom summary (2-3 lines) tailored to this specific role. The summary MUST only reference skills, experience, and domains that appear in the master CV. Do not claim expertise in areas not evidenced by the master CV data. Base the summary on the candidate's actual title variants, experience entries, and listed skills.
 - Order skill categories by relevance to the posting.
-- For each skill category, pick only the items most relevant to the posting (max ~6-8 items, must fit one line).
+- For each skill category, pick only the items most relevant to the posting (max ~6-8 items, must fit one line). Order items within each category by relevance to the posting, most relevant first.
 
 Return a JSON object with this exact structure:
 {

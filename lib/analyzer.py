@@ -1,7 +1,9 @@
 """Analyze a job posting using Claude API to extract structured requirements."""
 
 import json
+import re
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 import anthropic
 import yaml
@@ -235,6 +237,135 @@ def research_company(analysis: dict, master_cv: dict) -> dict:
             + f"## Job Posting Analysis\n```json\n"
             f"{json.dumps(analysis, indent=2)}\n```\n\n"
             f"Who this person is:\n{profile}"
+        )}],
+    )
+
+    raw = response.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1]
+        raw = raw.rsplit("```", 1)[0]
+    return json.loads(raw)
+
+
+def _fetch_url_text(url: str) -> str:
+    """Fetch a URL and extract visible text from HTML. Returns empty string on failure."""
+    try:
+        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        html = urlopen(req, timeout=15).read().decode("utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+    # Strip script/style blocks, then tags
+    html = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:8000]
+
+
+def research_company_url(company_name: str, url: str | None = None) -> dict:
+    """Research a company via web search and optional URL fetch.
+
+    Returns ``{"company_info": str, "url_text": str}`` with raw research material.
+    """
+    # DuckDuckGo searches for breadth
+    queries = [
+        f"{company_name} company services technology",
+        f"{company_name} careers hiring tech stack",
+        f"{company_name} AI machine learning products",
+    ]
+    all_snippets = []
+    for query in queries:
+        try:
+            with DDGS() as ddgs:
+                results = list(ddgs.text(query, max_results=5))
+            for r in results:
+                snippet = f"- {r['title']}: {r['body']}"
+                if snippet not in all_snippets:
+                    all_snippets.append(snippet)
+        except Exception:
+            pass
+
+    # Fetch URL if provided
+    url_text = ""
+    if url:
+        url_text = _fetch_url_text(url)
+
+    return {
+        "company_info": "\n".join(all_snippets),
+        "url_text": url_text,
+    }
+
+
+def synthesize_outreach_analysis(
+    company_name: str,
+    research: dict,
+    master_cv: dict,
+) -> dict:
+    """Synthesize a job posting analysis from company research for cold outreach.
+
+    Returns the same analysis dict format as ``analyze_posting`` so the
+    existing CV generation pipeline works unchanged.
+    """
+    candidate_profile = _build_candidate_profile(master_cv)
+    skills_block = yaml.dump(
+        master_cv.get("skills", []),
+        default_flow_style=False,
+        allow_unicode=True,
+        sort_keys=False,
+    )
+
+    client = anthropic.Anthropic()
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        system=(
+            "You are helping a job applicant prepare a speculative/cold outreach to a company. "
+            "You receive research about the company (web search results and/or website text) "
+            "and the candidate's profile.\n\n"
+            "Your job is to synthesize a realistic job posting analysis as if the company "
+            "had posted a role that best matches the candidate's strengths AND the company's "
+            "needs. This analysis will drive CV tailoring downstream.\n\n"
+            "Return a JSON object with exactly these fields:\n"
+            "{\n"
+            '  "role_title": "the ideal role title for this candidate at this company",\n'
+            '  "company": "company name",\n'
+            '  "company_slug": "lowercase-hyphenated",\n'
+            '  "must_have_skills": ["skills the company clearly needs based on research"],\n'
+            '  "nice_to_have_skills": ["additional relevant skills"],\n'
+            '  "experience_years": "estimated requirement or null",\n'
+            '  "key_responsibilities": ["3-5 responsibilities this role would involve"],\n'
+            '  "domain": "industry/domain",\n'
+            '  "role_type": "ml | fullstack | hybrid | backend | frontend | other",\n'
+            '  "is_recruiter": false,\n'
+            '  "seniority": "junior | mid | senior | lead | staff",\n'
+            '  "culture_signals": ["cultural indicators from research"],\n'
+            '  "requires_chinese": false,\n'
+            '  "red_flags": [],\n'
+            '  "tone": "formal | conversational | startup-casual",\n'
+            '  "fit_score": 1-10,\n'
+            '  "fit_recommendation": "apply | consider | skip",\n'
+            '  "fit_reasoning": "one sentence explaining the score",\n'
+            '  "required_applicant_info": [],\n'
+            '  "company_summary": "2-4 sentences about what the company does, their products, tech, and mission"\n'
+            "}\n\n"
+            "IMPORTANT:\n"
+            "- The must_have_skills should reflect what the company ACTUALLY works with, "
+            "not a wishlist. Ground them in the research.\n"
+            "- The role_title should be realistic for this company, not generic.\n"
+            "- Set fit_score based on how well the candidate matches this company's domain.\n"
+            "- The company_summary must only contain facts confirmed by the research. "
+            "Do NOT fabricate products, revenue, or founding dates.\n"
+            "NEVER use em dashes.\n"
+            "Return ONLY valid JSON, no other text."
+        ),
+        messages=[{"role": "user", "content": (
+            f"## Company: {company_name}\n\n"
+            + (f"## Web Search Results\n{research['company_info']}\n\n"
+               if research.get("company_info") else "")
+            + (f"## Company Website Text\n{research['url_text'][:4000]}\n\n"
+               if research.get("url_text") else "")
+            + f"## Candidate Profile\n{candidate_profile}\n\n"
+            f"## Candidate Skills\n```yaml\n{skills_block}```"
         )}],
     )
 

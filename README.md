@@ -1,22 +1,34 @@
 # CV Tailor
 
-Interactive CLI tool that generates tailored CVs and cover letters as PDFs. Paste a job posting, answer a few questions, get application-ready documents.
+Interactive CLI tool that generates tailored CVs and cover letters as PDFs. Two modes: paste a job posting to get application-ready documents, or cold-outreach a company with an auto-researched CV and personalized message.
 
 ## How it works
 
+### Job posting mode
+
 1. You paste a job posting into the terminal
-2. Claude (haiku) analyzes the posting: role, required skills, fit score, red flags
+2. Claude analyzes the posting: role, required skills, fit score, red flags
 3. Skill gaps are identified and you can add missing skills to your master CV on the fly
 4. You answer interactive questions (profile type, framing, projects, cover letter tone)
-5. Company research runs via DuckDuckGo search, synthesized by Claude (haiku) into a summary with a verified/unverified flag
-6. Claude (sonnet) selects and reframes relevant content from your master CV
+5. Company research runs via DuckDuckGo search, synthesized by Claude into a summary with a verified/unverified flag
+6. Claude selects and reframes relevant content from your master CV
 7. Generated CV claims are validated against your master CV to catch hallucinated skills or inflated metrics
 8. You review flagged issues in a markdown file: edit text directly, remove bullets, or request AI rewrites
 9. CV is rendered to PDF with interactive page fitting (suggests content reductions if it overflows one page)
-10. Claude (sonnet) writes a cover letter grounded in verified company research
+10. Claude writes a cover letter grounded in verified company research
 11. Cover letter claims are validated the same way, then you review and polish via a markdown file
 12. Both documents are rendered to PDF matching your CV design
 13. Skill gaps from the posting are added to a rolling weekly learning plan under `learning/` (one topic per ISO week)
+
+### Cold outreach mode
+
+1. You enter a company name and optionally a website URL
+2. The tool researches the company via DuckDuckGo searches and website scraping
+3. Claude synthesizes the research into a realistic job analysis matching your strengths to the company's needs
+4. From here, the CV generation pipeline works the same: skill gap check, preferences, generation, claim validation, page fitting
+5. Instead of a cover letter, Claude generates a personalized outreach email with a subject line
+6. You review and edit the message in a markdown file (with option to regenerate via AI)
+7. Output: tailored CV PDF + outreach message text file, saved to `output/<company>/`
 
 All CV data lives in `master_cv.yaml`, a tagged superset of all your experience, projects, skills, and education. The AI selects from this based on the posting, so you never lose content between versions.
 
@@ -80,12 +92,15 @@ These serve as baseline references for Claude when generating tailored CVs. The 
 .venv/bin/python tailor.py
 ```
 
-Then:
-- Paste the job posting text
-- Press **Ctrl+D** to submit (Ctrl+Z Enter on Windows)
-- Answer the interactive prompts
-- Review and edit generated content in markdown review files
-- PDFs appear in `output/`
+You'll see a menu:
+
+- **Process a job posting** -- paste a posting, get a tailored CV + cover letter
+- **Cold outreach to a company** -- enter a company name/URL, get a tailored CV + outreach email
+- **Exit**
+
+For job postings: paste the text, press **Ctrl+D** to submit (Ctrl+Z Enter on Windows), then answer the interactive prompts. Review and edit generated content in markdown review files. PDFs appear in `output/`.
+
+For cold outreach: enter the company name and optionally a URL. The tool researches the company, shows you the analysis, then follows the same CV generation flow. You also get an outreach message to review and edit.
 
 ### Sync mode
 
@@ -102,7 +117,8 @@ Generated files land in `output/<company-name>/`:
 output/
 └── Acme Corp/
     ├── Jane Doe CV.pdf
-    └── Jane Doe CL.pdf
+    ├── Jane Doe CL.pdf              # job posting mode
+    └── outreach_message.txt          # cold outreach mode
 ```
 
 ## Anti-hallucination safeguards
@@ -131,8 +147,8 @@ cv-tailor/
 ├── personal_notes.sample.yaml   # Sample notes (committed)
 ├── requirements.txt
 ├── lib/
-│   ├── analyzer.py              # Job posting analysis + company research (Claude haiku)
-│   ├── generator.py             # CV + cover letter generation + claim validation (Claude sonnet/haiku)
+│   ├── analyzer.py              # Job posting analysis + company research + cold outreach synthesis
+│   ├── generator.py             # CV + cover letter + outreach message generation + claim validation
 │   ├── renderer.py              # Jinja2 + WeasyPrint PDF rendering + page fitting
 │   ├── interactive.py           # Terminal Q&A flow + skill gap detection
 │   ├── learning.py              # Rolling weekly learning plan from skill gaps

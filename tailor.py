@@ -13,9 +13,9 @@ import yaml
 from rich.console import Console
 from rich.panel import Panel
 
-from lib.analyzer import analyze_posting, research_company
+from lib.analyzer import analyze_posting, research_company, research_company_url, synthesize_outreach_analysis
 from lib.learning import update_with_posting as update_learning_plan
-from lib.generator import generate_cover_letter, generate_tailored_cv, polish_cover_letter, regenerate_bullet, regenerate_paragraph, regenerate_summary, validate_claims
+from lib.generator import generate_cover_letter, generate_outreach_message, generate_tailored_cv, polish_cover_letter, regenerate_bullet, regenerate_paragraph, regenerate_summary, validate_claims
 from lib.interactive import check_skill_gaps, console, display_analysis, get_cl_preferences, get_cv_preferences, get_job_posting, get_required_info
 from lib.renderer import apply_reductions, get_available_reductions, render_cover_letter, render_cv, render_cv_doc
 from lib.sync import sync_master_cv
@@ -35,7 +35,7 @@ def _strip_metadata_tags(skills: list[dict]) -> list[dict]:
     cleaned = []
     for cat in skills:
         items = [re.sub(r"\s*\(source:\s*\w+\)", "", item) for item in cat.get("items", [])]
-        cleaned.append({**cat, "items": items})
+        cleaned.append({**cat, "items": items[:8]})
     return cleaned
 
 
@@ -44,6 +44,8 @@ def _build_cv_render_data(
     tailored: dict,
     company_name: str,
     required_info: list[dict] | None = None,
+    include_projects: bool = True,
+    include_awards: bool = True,
 ) -> dict:
     """Assemble the data dict expected by cv.html.j2."""
     header_notes = []
@@ -55,8 +57,10 @@ def _build_cv_render_data(
         "summary": tailored["summary"],
         "skills": _strip_metadata_tags(tailored["skills"]),
         "experience": tailored["experience"],
-        "projects": tailored.get("projects", []),
+        "projects": tailored.get("projects", []) if include_projects else [],
         "education": tailored["education"],
+        "awards": master.get("awards", []),
+        "include_awards": include_awards,
         "company_name": company_name,
         "header_notes": header_notes,
     }
@@ -916,7 +920,11 @@ def _process_posting(master: dict) -> None:
         tailored_cv = _review_cv_claims(cv_issues, tailored_cv, company_name, analysis)
 
     # Step 5: Render CV PDF (with interactive page fitting)
-    cv_data = _build_cv_render_data(master, tailored_cv, company_name, required_info)
+    cv_data = _build_cv_render_data(
+        master, tailored_cv, company_name, required_info,
+        include_projects=prefs.get("include_projects", True),
+        include_awards=prefs.get("include_awards", True),
+    )
 
     if cv_data["header_notes"]:
         cv_data["header_notes"] = _review_header_notes(cv_data["header_notes"], company_name)
@@ -1018,6 +1026,305 @@ def _process_posting(master: dict) -> None:
     console.print("[bold green]Done![/bold green]")
 
 
+# ---------------------------------------------------------------------------
+# Cold outreach flow
+# ---------------------------------------------------------------------------
+
+
+def _write_outreach_review_file(subject: str, message: str, review_path: Path) -> None:
+    """Write outreach message to a markdown file for editing."""
+    lines = [
+        "# Outreach Message Review",
+        "",
+        "Edit the subject and message below. Save the file and press Enter.",
+        "",
+        "## Subject",
+        "",
+        subject,
+        "",
+        "## Message",
+        "",
+        message,
+        "",
+    ]
+    review_path.parent.mkdir(parents=True, exist_ok=True)
+    review_path.write_text("\n".join(lines))
+
+
+def _parse_outreach_review_file(review_path: Path) -> dict:
+    """Parse outreach review markdown. Returns {"subject": str, "message": str}."""
+    content = review_path.read_text()
+
+    # Extract subject
+    subject_match = re.search(
+        r"## Subject\s*\n\s*\n(.*?)(?=\n## |\Z)", content, re.DOTALL
+    )
+    subject = subject_match.group(1).strip() if subject_match else ""
+
+    # Extract message
+    message_match = re.search(
+        r"## Message\s*\n\s*\n(.*?)(?=\Z)", content, re.DOTALL
+    )
+    message = message_match.group(1).strip() if message_match else ""
+
+    return {"subject": subject, "message": message}
+
+
+def _review_outreach_message(
+    outreach: dict,
+    analysis: dict,
+    tailored_cv: dict,
+    user_prefs: dict,
+    company_name: str,
+) -> dict:
+    """File-based outreach message review. Returns the approved message dict."""
+    review_path = OUTPUT_DIR / company_name / "outreach_review.md"
+
+    while True:
+        _write_outreach_review_file(
+            outreach["subject"], outreach["message"], review_path
+        )
+
+        console.print()
+        console.print(f"  [bold]Review file:[/bold] {review_path}")
+        console.print("  Edit the subject and message, then save the file.")
+
+        try:
+            input("  Press Enter when done editing... ")
+        except EOFError:
+            raise KeyboardInterrupt
+
+        parsed = _parse_outreach_review_file(review_path)
+
+        action = questionary.select(
+            "What next?",
+            choices=[
+                questionary.Choice("Approve and save", value="approve"),
+                questionary.Choice("Regenerate with AI", value="regenerate"),
+                questionary.Choice("Continue editing", value="edit"),
+            ],
+        ).ask()
+        if action is None:
+            raise KeyboardInterrupt
+
+        if action == "edit":
+            outreach = parsed
+            continue
+
+        if action == "regenerate":
+            with console.status("[bold green]Regenerating outreach message..."):
+                try:
+                    outreach = generate_outreach_message(
+                        analysis, tailored_cv, user_prefs
+                    )
+                except Exception as e:
+                    console.print(f"[red]Failed: {e}[/red]")
+                    outreach = parsed
+            continue
+
+        # Approved
+        outreach = parsed
+        review_path.unlink(missing_ok=True)
+        return outreach
+
+
+def _process_outreach(master: dict) -> None:
+    """Cold outreach: research company, generate CV + outreach message."""
+    # Step 1: Get company details
+    company_name = questionary.text("Company name:").ask()
+    if not company_name:
+        raise KeyboardInterrupt
+    company_url = questionary.text(
+        "Company website URL (optional, press Enter to skip):",
+        default="",
+    ).ask()
+    if company_url is None:
+        raise KeyboardInterrupt
+    company_url = company_url.strip() or None
+
+    console.print()
+
+    # Step 2: Research the company
+    with console.status("[bold green]Researching company (web search)..."):
+        research = research_company_url(company_name, company_url)
+
+    snippet_count = research["company_info"].count("\n") + 1 if research["company_info"] else 0
+    url_status = "fetched" if research["url_text"] else "skipped"
+    console.print(
+        f"  [dim]Research: {snippet_count} search snippets, URL {url_status}[/dim]"
+    )
+
+    # Step 3: Synthesize analysis from research
+    with console.status("[bold green]Analyzing company fit (Claude)..."):
+        try:
+            analysis = synthesize_outreach_analysis(company_name, research, master)
+        except Exception as e:
+            console.print(f"[red]Failed to analyze company: {e}[/red]")
+            return
+
+    # Ensure company name is set
+    analysis["company"] = company_name
+
+    # Show the synthesized analysis
+    display_analysis(analysis)
+
+    # Show company summary if available
+    company_summary = analysis.pop("company_summary", "")
+    if company_summary:
+        console.print(
+            Panel(company_summary, title="Company Summary", border_style="cyan")
+        )
+
+    # Gate: confirm fit
+    rec = analysis.get("fit_recommendation", "apply")
+    if rec == "skip":
+        proceed = questionary.confirm(
+            "Low fit score. Proceed anyway?", default=False
+        ).ask()
+        if not proceed:
+            return
+    elif rec == "consider":
+        proceed = questionary.confirm(
+            "Moderate fit. Proceed?", default=True
+        ).ask()
+        if not proceed:
+            return
+
+    # Confirm company name for output folder
+    company_name = questionary.text(
+        "Company name for output folder/PDF?",
+        default=company_name,
+    ).ask()
+    if company_name is None:
+        raise KeyboardInterrupt
+    company_name = company_name.strip() or analysis["company"]
+    analysis["company"] = company_name
+
+    # Skill gap check
+    additions = check_skill_gaps(analysis, master)
+    if additions:
+        for item in additions:
+            for cat in master["skills"]:
+                if cat["category"] == item["category"]:
+                    cat["items"].append(f"{item['skill']} (source: user_claimed)")
+                    break
+        MASTER_CV_PATH.write_text(
+            yaml.dump(master, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        )
+        console.print(
+            f"[green]Added {len(additions)} skill(s) to master_cv.yaml[/green]"
+        )
+
+    # Step 4: CV preferences
+    cv_prefs = get_cv_preferences(analysis)
+    # Cold outreach always skips cover letter (we generate an outreach message instead)
+    cv_prefs["include_cover_letter"] = False
+    prefs = cv_prefs
+    console.print()
+
+    # Step 5: Generate CV
+    console.print("  [dim]Starting CV generation...[/dim]")
+    with console.status("[bold green]Generating tailored CV (Claude)..."):
+        try:
+            tailored_cv = generate_tailored_cv(analysis, prefs)
+        except Exception as e:
+            console.print(f"[red]Failed to generate CV: {e}[/red]")
+            return
+
+    console.print("  [dim]CV content generated[/dim]")
+
+    # Step 5b: Validate claims
+    with console.status("[bold green]Validating CV claims..."):
+        cv_issues = validate_claims(tailored_cv, master, doc_type="cv")
+    if cv_issues:
+        tailored_cv = _review_cv_claims(cv_issues, tailored_cv, company_name, analysis)
+
+    # Step 6: Render CV PDF (with page fitting)
+    cv_data = _build_cv_render_data(
+        master, tailored_cv, company_name,
+        include_projects=cv_prefs.get("include_projects", True),
+        include_awards=cv_prefs.get("include_awards", True),
+    )
+
+    if cv_data.get("header_notes"):
+        cv_data["header_notes"] = _review_header_notes(
+            cv_data["header_notes"], company_name
+        )
+
+    with console.status("[bold green]Rendering CV (page check)..."):
+        try:
+            doc, cv_output_path = render_cv_doc(cv_data)
+        except Exception as e:
+            console.print(f"[red]Failed to render CV: {e}[/red]")
+            return
+
+    current_data = cv_data
+    while len(doc.pages) > 1:
+        preview_path = cv_output_path.with_name(cv_output_path.stem + " - PREVIEW.pdf")
+        doc.write_pdf(str(preview_path))
+        console.print(
+            f"[yellow]CV overflows to {len(doc.pages)} pages.[/yellow]"
+        )
+        console.print(f"  [dim]Preview:[/dim] {preview_path}")
+
+        available = get_available_reductions(current_data)
+        if not available:
+            console.print("[red]No more reductions available. Rendering as-is.[/red]")
+            break
+
+        choices = [
+            questionary.Choice(r["label"], value=r["id"], checked=True)
+            for r in available
+        ]
+        selected = questionary.checkbox(
+            "Which content to remove?",
+            choices=choices,
+        ).ask()
+        if selected is None:
+            raise KeyboardInterrupt
+
+        if selected:
+            current_data = apply_reductions(current_data, selected, available)
+
+        with console.status("[bold green]Re-rendering CV..."):
+            doc, cv_output_path = render_cv_doc(current_data)
+
+    # Clean up preview
+    preview_path = cv_output_path.with_name(cv_output_path.stem + " - PREVIEW.pdf")
+    if preview_path.exists():
+        preview_path.unlink()
+
+    with console.status("[bold green]Writing CV PDF..."):
+        doc.write_pdf(str(cv_output_path))
+
+    console.print(f"  [green]CV:[/green]           {cv_output_path}")
+
+    # Step 7: Generate outreach message
+    with console.status("[bold green]Generating outreach message (Claude)..."):
+        try:
+            outreach = generate_outreach_message(analysis, tailored_cv, prefs)
+        except Exception as e:
+            console.print(f"[red]Failed to generate outreach message: {e}[/red]")
+            return
+
+    console.print("  [dim]Outreach message generated[/dim]")
+
+    # Step 8: Review outreach message
+    outreach = _review_outreach_message(
+        outreach, analysis, tailored_cv, prefs, company_name,
+    )
+
+    # Step 9: Save outreach message
+    msg_path = OUTPUT_DIR / company_name / "outreach_message.txt"
+    msg_path.parent.mkdir(parents=True, exist_ok=True)
+    msg_content = f"Subject: {outreach['subject']}\n\n{outreach['message']}"
+    msg_path.write_text(msg_content)
+    console.print(f"  [green]Message:[/green]       {msg_path}")
+
+    console.print()
+    console.print("[bold green]Done![/bold green]")
+
+
 def main():
     # Handle --sync flag: sync and exit
     if "--sync" in sys.argv:
@@ -1035,16 +1342,25 @@ def main():
     master = _load_master_cv()
 
     while True:
-        try:
-            _process_posting(master)
-        except KeyboardInterrupt:
-            console.print("\n[yellow]Cancelled.[/yellow]")
+        mode = questionary.select(
+            "What would you like to do?",
+            choices=[
+                questionary.Choice("Process a job posting", value="posting"),
+                questionary.Choice("Cold outreach to a company", value="outreach"),
+                questionary.Choice("Exit", value="exit"),
+            ],
+        ).ask()
+        if mode is None or mode == "exit":
             break
 
-        console.print()
-        another = questionary.confirm("Process another posting?", default=True).ask()
-        if not another:
-            break
+        try:
+            if mode == "posting":
+                _process_posting(master)
+            else:
+                _process_outreach(master)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Cancelled.[/yellow]")
+
         console.print()
 
 
